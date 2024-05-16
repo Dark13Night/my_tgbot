@@ -198,7 +198,7 @@ def savePhoneNumbers(update: Update, context):
 PASSWORD_CHECK, PASSWORD_ENTER = range(2)
 
 def verify_password_command(update, context):
-    logger.info(f"/verify_password command executed by {user.full_name}")
+    
     update.message.reply_text("Введите пароль для проверки сложности:")
     return PASSWORD_ENTER
 
@@ -441,7 +441,7 @@ def get_services(update, context):
        
     try:
         ssh = get_ssh_connection()
-        stdin, stdout, stderr = ssh.exec_command('systemctl list-units --type=service')
+        stdin, stdout, stderr = ssh.exec_command('systemctl list-units --type=service | head -n 20')
         service_info = stdout.read().decode('utf-8')
         update.message.reply_text(f"Информация о запущенных сервисах: \n{service_info}")
     except Exception as e:
