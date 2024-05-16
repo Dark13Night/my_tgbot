@@ -1,0 +1,28 @@
+all:
+  vars:
+    DB_REPL_USER: repl_user
+    DB_REPL_PASSWORD: qwerty
+    POSTGRES_VERSION: 14
+    DB_HOST: 192.168.1.46
+  hosts:
+    host01:
+      ansible_host: 192.168.1.46
+      ansible_user: root
+      ansible_ssh_pass: changeme 
+      github_repo: https://github.com/Dark13Night/my_tgbot.git
+      dir: /home/vboxuser/ansible
+      TOKEN: 
+      RM_HOST: 192.168.1.46
+      RM_PORT: 22
+      RM_USER: root
+      RM_PASSWORD: changeme
+      DB_USER: postgres
+      DB_PASSWORD: 
+      DB_PORT: 5432
+      DB_DATABASE: botdb
+      DB_REPL_HOST: db_repl
+      DB_REPL_PORT: 5432
+    host02:
+      ansible_host: 192.168.1.115
+      ansible_user: root
+      ansible_ssh_pass: changeme
