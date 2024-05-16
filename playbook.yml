@@ -1,0 +1,273 @@
+- name: instalation for all
+
+  hosts: all
+
+  gather_facts: false
+
+  tasks:
+
+    - name: install postgresql
+
+      package:
+
+        name: postgresql
+
+        state: latest
+
+    - name: install psycopg2
+
+      package:
+
+        name: postgresql-contrib
+
+        state: latest
+
+    - name: install libpq-dev
+
+      package:
+
+        name: libpq-dev
+
+        state: latest
+
+
+
+- name: db init
+
+  hosts: host01
+
+  gather_facts: false
+
+  tasks:
+
+    - name: copy
+
+      copy:
+
+        src: "{{ hostvars[inventory_hostname]['dir'] }}/init.sql"
+
+        dest: /tmp/init.sql
+
+        mode: '0644'
+
+    - name: chown
+
+      command: chown postgres:postgres /tmp/init.sql
+
+    - name: replacedb
+
+      replace:
+
+        path: /tmp/init.sql
+
+        regexp: "replacedbname"
+
+        replace: "{{ hostvars[inventory_hostname]['DB_DATABASE'] }}"
+
+    - name: replaceuser
+
+      replace:
+
+        path: /tmp/init.sql
+
+        regexp: "replacerepluser"
+
+        replace: "{{ hostvars[inventory_hostname]['DB_REPL_USER'] }}"
+
+    - name: replacepassword
+
+      replace:
+
+        path: /tmp/init.sql
+
+        regexp: "replacereplpassword"
+
+        replace: "{{ hostvars[inventory_hostname]['DB_REPL_PASSWORD'] }}"
+
+    - name: replacepostgresuser
+
+      replace:
+
+        path: /tmp/init.sql
+
+        regexp: "replacepostgresuser"
+
+        replace: "{{ hostvars[inventory_hostname]['DB_USER'] }}"
+
+    - name: replacepostgrespassword
+
+      replace:
+
+        path: /tmp/init.sql
+
+        regexp: "replacepostgrespassword"
+
+        replace: "{{ hostvars[inventory_hostname]['DB_PASSWORD'] }}"
+
+    - name: restart postgresql
+
+      service:
+
+        name: postgresql
+
+        state: restarted
+
+    - name: init.sql
+
+      command: psql -a -f /tmp/init.sql
+
+      become: true
+
+      become_user: postgres
+
+
+
+- name: config for replication
+
+  hosts: host01
+
+  gather_facts: false
+
+  tasks:
+
+    - name: add to conf file
+
+      blockinfile:
+
+        path: "/etc/postgresql/{{ hostvars[inventory_hostname]['POSTGRES_VERSION'] }}/main/postgresql.conf"
+
+        block: |
+
+          listen_addresses = '*'
+
+          port  = {{ hostvars[inventory_hostname]['DB_PORT']}}
+
+          wal_level=replica
+
+          wal_log_hints = on
+
+          log_destination = 'stderr'
+
+          logging_collector = on
+
+          max_wal_senders=10
+
+          log_replication_commands=on
+
+    - name: pg_hba conf
+
+      blockinfile:
+
+        path: "/etc/postgresql/{{ hostvars[inventory_hostname]['POSTGRES_VERSION'] }}/main/pg_hba.conf"
+
+        block: |
+
+          host replication {{ hostvars[inventory_hostname]['DB_REPL_USER'] }} {{ hostvars[inventory_hostname]['ansible_host'] }}/24 trust
+
+          host all all 0.0.0.0/0 trust
+
+    - name: restart postgresql
+
+      service:
+
+        name: postgresql
+
+        state: restarted
+
+      
+
+- name: configure repl_bd
+
+  hosts: host02
+
+  gather_facts: false
+
+  tasks:
+
+    - name: rm
+
+      command: rm -rf /var/lib/postgresql/{{ hostvars[inventory_hostname]['POSTGRES_VERSION'] }}/
+
+    - name: pg_basebackup
+
+      command: pg_basebackup -h {{ hostvars[inventory_hostname]['DB_HOST'] }} -D /var/lib/postgresql/{{ hostvars[inventory_hostname]['POSTGRES_VERSION'] }}/main/ -U {{ hostvars[inventory_hostname]['DB_REPL_USER'] }} -vP -w
+
+      environment: 
+
+        PGPASSWORD: "{{ hostvars[inventory_hostname]['DB_REPL_PASSWORD'] }}"
+
+    - name: chown
+
+      command: chown -R postgres:postgres /var/lib/postgresql/
+
+    - name: restart postgresql
+
+      service:
+
+        name: postgresql
+
+        state: restarted
+
+
+
+- name: bot
+
+  hosts: host01
+
+  gather_facts: false
+
+  tasks:
+
+    - name: mkdir
+
+      command: mkdir -p "{{ hostvars[inventory_hostname]['dir'] }}/bot_repo"
+
+    - name: git clone
+
+      git:
+
+        repo: https://github.com/Dark13Night/my_tgbot.git
+
+        dest: "{{ hostvars[inventory_hostname]['dir'] }}/bot_repo"
+
+        version: main
+
+    - name: pip install
+
+      pip: 
+
+        name: paramiko
+
+        name: psycopg2-binary
+
+        name: python-dotenv
+
+        name: python-telegram-bot==13.7
+
+    - name: run bot
+
+      command: python3 "{{ hostvars[inventory_hostname]['dir'] }}/bot_repo/bot.py"
+
+      environment:
+
+        TOKEN: "{{ hostvars[inventory_hostname]['TOKEN'] }}"
+
+        RM_HOST: "{{ hostvars[inventory_hostname]['RM_HOST'] }}"
+
+        RM_PORT: "{{ hostvars[inventory_hostname]['RM_PORT'] }}"
+
+        RM_USER: "{{ hostvars[inventory_hostname]['RM_USER'] }}"
+
+        RM_PASSWORD: "{{ hostvars[inventory_hostname]['RM_PASSWORD'] }}"
+
+        DB_HOST: "{{ hostvars[inventory_hostname]['ansible_host'] }}"
+
+        DB_PORT: "{{ hostvars[inventory_hostname]['DB_PORT'] }}"
+
+        DB_USER: "{{ hostvars[inventory_hostname]['DB_USER'] }}"
+
+        DB_PASSWORD: "{{ hostvars[inventory_hostname]['DB_PASSWORD'] }}"
+
+        DB_DATABASE: "{{ hostvars[inventory_hostname]['DB_DATABASE'] }}"
+
+        PG_VERSION: "{{ hostvars[inventory_hostname]['POSTGRES_VERSION'] }}"
